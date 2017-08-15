@@ -24,11 +24,14 @@ module.exports = function bufferActions(options, cb) {
   return function(store) {
     return function(next) {
       return function(action) {
-        // console.log("next", next, action);
-        if (!active || passthrough.includes(action.type)) return next(action)
+        var result
+        if (passthrough.includes(action.type)) {
+          result = next(action)
+        }
+
+        if (!active) return result || next(action)
         if (breaker(action)) {
           active = false
-          var result = next(action)
           setImmediate(function() {
             var queueResults = []
             queue.forEach(function(queuedAction) {
@@ -41,11 +44,15 @@ module.exports = function bufferActions(options, cb) {
                 queue: queue
               })
           })
-          return result
+          return result || next(action)
         } else {
-          queue.push(action)
           // @TODO consider returning a dummy action, or maybe null for cleanliness
-          return BUFFERED_ACTION_RETURN
+          if (result) {
+            return result
+          } else {
+            queue.push(action)
+            return BUFFERED_ACTION_RETURN
+          }
         }
       }
     }
